@@ -28,20 +28,21 @@ std::vector<int> Graph::dijkstra(int u) const
         }
     };
     std:: priority_queue<node>q;
-    
-    std::vector<int>dis;
-    dis.resize(n);
+    const int INF=0x3f3f3f3f;
+    std::vector<int>dis(n,INF);
+    dis[u]=0;
     q.push({u,0});
     while(!q.empty())
     {
         int x=q.top().u,w=q.top().w;
         q.pop();
-        for(auto i:neighbors(x))
+        if(w!=dis[x])continue;
+        for(const auto &i:neighbors(x))
         {
             if(dis[x]+i.weight<dis[i.to])
             {
                 dis[i.to]=dis[x]+i.weight;
-                q.push({i.to,i.weight});
+                q.push({i.to,dis[i.to]});
             }
         }
     }
