@@ -10,4 +10,5 @@ add_executable(
     GraphLab
     src/main.cpp
     src/math.cpp
+    src/graph.cpp
 )

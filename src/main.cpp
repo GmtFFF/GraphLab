@@ -1,4 +1,5 @@
 #include "math.hpp"
+#include "graph.hpp"
 #include<iostream>
 
 int main()
@@ -7,7 +8,7 @@ int main()
 
     Graph g(100);
 
-    addEdge(1,2,100);
+    g.addEdge(1,2,100);
 
     return 0;
 }

@@ -22,6 +22,8 @@ class Graph
 
         const std::vector<Edge>& neighbors(int u) const;
 
+        std::vector<int> dijkstra(int u) const;
+
 
 };
 #endif
