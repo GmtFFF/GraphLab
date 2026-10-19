@@ -16,13 +16,11 @@ int DSU::find(int x)
 
 bool DSU::unite(int x,int y)
 {
-    bool s=same(x,y);
-    if(!s)
-    {
-        this->fa[find(x)]=find(y);
-        siz[y]+=siz[x];
-    }
-    return !s;
+    x=find(x),y=find(y);
+    if(x==y)return 0;
+    fa[x]=y;
+    siz[y]+=siz[x];
+    return 1;
 }
 
 bool DSU::same(int x,int y)
