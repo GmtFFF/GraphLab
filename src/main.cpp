@@ -3,6 +3,7 @@
 #include "dsu.hpp"
 #include "kruskal.hpp"
 #include <iostream>
+#include <optional>
 #include <random>
 #include <vector>
 
@@ -163,21 +164,35 @@ int main()
     }
     checkDSU("Fixed-seed unions match reference model", matchesReference);
 
+    auto printMSTResult = [](const std::optional<long long>& result)
+    {
+        if (result.has_value()) std::cout << *result;
+        else std::cout << "nullopt (no spanning tree)";
+    };
+
     auto checkKruskal = [&](const char* name, int n,
-                           const std::vector<WeightEdge>& edges, long long expected)
+                           const std::vector<WeightEdge>& edges,
+                           std::optional<long long> expected)
     {
         ++total;
-        const long long actual = kruskal(n, edges);
+        const auto actual = kruskal(n, edges);
         const bool passed = actual == expected;
         if (!passed) ++failed;
         std::cout << (passed ? "[PASS] Kruskal: " : "[FAIL] Kruskal: ") << name << '\n';
-        std::cout << "  Expected: " << expected << ", actual: " << actual << '\n';
+        std::cout << "  Expected: ";
+        printMSTResult(expected);
+        std::cout << ", actual: ";
+        printMSTResult(actual);
+        std::cout << '\n';
     };
 
     std::cout << "\nKruskal tests\n";
 
     checkKruskal("Single node", 1, {}, 0);
-    checkKruskal("Graph without edges", 4, {}, 0);
+    checkKruskal("Graph without edges has no spanning tree", 4, {}, std::nullopt);
+
+    checkKruskal("Single node with self-loops has zero total weight", 1,
+                 {{0, 0, -10}, {0, 0, 5}}, 0);
 
     checkKruskal("Input already forms a tree", 4,
                  {{0, 1, 8}, {1, 2, -3}, {2, 3, 4}}, 9);
@@ -203,6 +218,10 @@ int main()
                  {{0, 1, -4}, {1, 2, -2}, {2, 3, 3},
                   {0, 3, 10}, {0, 2, 0}, {1, 3, 5}}, -3);
 
+    // A valid negative weight must not be mistaken for a failure sentinel.
+    checkKruskal("Minus one is a valid spanning tree weight", 2,
+                 {{0, 1, -1}}, -1);
+
     checkKruskal("Zero-weight spanning tree", 4,
                  {{0, 1, 0}, {1, 2, 0}, {2, 3, 0}, {0, 3, 1}}, 0);
 
@@ -210,10 +229,14 @@ int main()
                  {{0, 0, -100}, {1, 1, -50}, {0, 1, 4},
                   {1, 2, 2}, {0, 2, 9}}, 6);
 
-    // The current API returns a minimum spanning forest for disconnected input.
-    // Component weights are 3 and -2; isolated node 5 contributes zero.
+    // A forest weight is not a valid MST result under the optional-return API.
     checkKruskal("Disconnected graph and isolated node", 6,
-                 {{0, 1, 2}, {1, 2, 1}, {0, 2, 8}, {3, 4, -2}}, 1);
+                 {{0, 1, 2}, {1, 2, 1}, {0, 2, 8}, {3, 4, -2}}, std::nullopt);
+
+    // Having at least n-1 input edges does not imply the graph is connected.
+    checkKruskal("Many edges but still disconnected", 4,
+                 {{0, 1, 1}, {1, 2, 2}, {2, 0, 3},
+                  {0, 1, 4}, {3, 3, -10}}, std::nullopt);
 
     // Each weight fits int, but their sum requires a 64-bit accumulator.
     checkKruskal("Total weight exceeds int range", 3,

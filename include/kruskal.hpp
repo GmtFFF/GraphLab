@@ -2,16 +2,17 @@
 #define KRUSKAL_HPP
 
 #include<vector>
+#include<optional>
 
 struct WeightEdge
 {
     int u,v,w;
-    bool operator <(WeightEdge x)
+    bool operator <(const WeightEdge &x)const
     {
         return w<x.w;
     }
 };
 
-long long kruskal(int n,std::vector<WeightEdge>edges);
+std::optional<long long> kruskal(int n,std::vector<WeightEdge>edges);
 
 #endif
