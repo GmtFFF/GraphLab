@@ -1,6 +1,7 @@
 #include "graph.hpp"
 #include "dijkstra.hpp"
 #include "dsu.hpp"
+#include "kruskal.hpp"
 #include <iostream>
 #include <random>
 #include <vector>
@@ -161,6 +162,63 @@ int main()
         }
     }
     checkDSU("Fixed-seed unions match reference model", matchesReference);
+
+    auto checkKruskal = [&](const char* name, int n,
+                           const std::vector<WeightEdge>& edges, long long expected)
+    {
+        ++total;
+        const long long actual = kruskal(n, edges);
+        const bool passed = actual == expected;
+        if (!passed) ++failed;
+        std::cout << (passed ? "[PASS] Kruskal: " : "[FAIL] Kruskal: ") << name << '\n';
+        std::cout << "  Expected: " << expected << ", actual: " << actual << '\n';
+    };
+
+    std::cout << "\nKruskal tests\n";
+
+    checkKruskal("Single node", 1, {}, 0);
+    checkKruskal("Graph without edges", 4, {}, 0);
+
+    checkKruskal("Input already forms a tree", 4,
+                 {{0, 1, 8}, {1, 2, -3}, {2, 3, 4}}, 9);
+
+    // Edges arrive unsorted; the cheapest spanning tree weighs 1 + 2 + 3.
+    checkKruskal("Unsorted connected graph", 4,
+                 {{0, 3, 10}, {0, 2, 4}, {1, 3, 5},
+                  {2, 3, 1}, {0, 1, 3}, {1, 2, 2}}, 6);
+
+    checkKruskal("Cycle edge is skipped", 3,
+                 {{0, 1, 4}, {1, 2, 2}, {2, 0, 1}}, 3);
+
+    checkKruskal("Equal weights allow multiple minimum trees", 4,
+                 {{0, 1, 7}, {1, 2, 7}, {2, 3, 7},
+                  {3, 0, 7}, {0, 2, 7}}, 21);
+
+    // Reverse endpoints still describe the same undirected connection.
+    checkKruskal("Parallel and reversed edges", 3,
+                 {{0, 1, 9}, {1, 0, 2}, {1, 2, 3},
+                  {0, 2, 8}, {0, 1, 2}}, 5);
+
+    checkKruskal("Negative weights", 4,
+                 {{0, 1, -4}, {1, 2, -2}, {2, 3, 3},
+                  {0, 3, 10}, {0, 2, 0}, {1, 3, 5}}, -3);
+
+    checkKruskal("Zero-weight spanning tree", 4,
+                 {{0, 1, 0}, {1, 2, 0}, {2, 3, 0}, {0, 3, 1}}, 0);
+
+    checkKruskal("Negative self-loops are ignored", 3,
+                 {{0, 0, -100}, {1, 1, -50}, {0, 1, 4},
+                  {1, 2, 2}, {0, 2, 9}}, 6);
+
+    // The current API returns a minimum spanning forest for disconnected input.
+    // Component weights are 3 and -2; isolated node 5 contributes zero.
+    checkKruskal("Disconnected graph and isolated node", 6,
+                 {{0, 1, 2}, {1, 2, 1}, {0, 2, 8}, {3, 4, -2}}, 1);
+
+    // Each weight fits int, but their sum requires a 64-bit accumulator.
+    checkKruskal("Total weight exceeds int range", 3,
+                 {{0, 1, 1500000000}, {1, 2, 1500000000},
+                  {0, 2, 2000000000}}, 3000000000LL);
 
     std::cout << '\n' << total - failed << '/' << total << " tests passed.\n";
     return failed == 0 ? 0 : 1;
