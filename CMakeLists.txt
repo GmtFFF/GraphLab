@@ -12,4 +12,5 @@ add_executable(
     src/math.cpp
     src/graph.cpp
     src/dijkstra.cpp
+    src/dsu.cpp
 )
