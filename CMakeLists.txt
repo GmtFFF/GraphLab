@@ -14,6 +14,7 @@ add_executable(
     src/dijkstra.cpp
     src/dsu.cpp
     src/kruskal.cpp
+    src/tarjan.cpp
 )
 
 enable_testing()

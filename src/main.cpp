@@ -2,6 +2,7 @@
 #include "dijkstra.hpp"
 #include "dsu.hpp"
 #include "kruskal.hpp"
+#include "tarjan.hpp"
 #include <iostream>
 #include <optional>
 #include <random>
@@ -242,6 +243,147 @@ int main()
     checkKruskal("Total weight exceeds int range", 3,
                  {{0, 1, 1500000000}, {1, 2, 1500000000},
                   {0, 2, 2000000000}}, 3000000000LL);
+
+    auto runTarjan = [](const Graph& graph)
+    {
+        SCC scc(graph.size());
+        for (int i = 0; i < graph.size(); ++i)
+            if (scc.belong(i) == 0) scc.Tarjan(graph, i);
+        return scc;
+    };
+
+    // Compare partitions, since component IDs depend on DFS order.
+    auto matchesPartition = [](const SCC& scc, const std::vector<int>& expected)
+    {
+        const int n = static_cast<int>(expected.size());
+        int expectedCount = 0;
+        for (int i = 0; i < n; ++i)
+        {
+            bool first = true;
+            for (int j = 0; j < i; ++j)
+                if (expected[i] == expected[j]) first = false;
+            if (first) ++expectedCount;
+        }
+        if (scc.count() != expectedCount) return false;
+        for (int i = 0; i < n; ++i)
+        {
+            if (scc.belong(i) < 1 || scc.belong(i) > scc.count()) return false;
+            for (int j = 0; j < i; ++j)
+                if ((scc.belong(i) == scc.belong(j)) != (expected[i] == expected[j]))
+                    return false;
+        }
+        return true;
+    };
+
+    auto checkTarjan = [&](const char* name, int n,
+                          const std::vector<WeightEdge>& edges,
+                          const std::vector<int>& expected)
+    {
+        Graph graph(n);
+        for (const auto& edge : edges) graph.addEdge(edge.u, edge.v, edge.w);
+        const auto scc = runTarjan(graph);
+        const bool passed = matchesPartition(scc, expected);
+        ++total;
+        if (!passed) ++failed;
+        std::cout << (passed ? "[PASS] Tarjan: " : "[FAIL] Tarjan: ") << name << '\n';
+        std::cout << "  Count: " << scc.count() << '\n';
+        if (!passed)
+        {
+            std::cout << "  Actual component IDs: ";
+            for (int i = 0; i < n; ++i) std::cout << scc.belong(i) << ' ';
+            std::cout << "\n  Expected grouping: ";
+            for (int label : expected) std::cout << label << ' ';
+            std::cout << '\n';
+        }
+    };
+
+    std::cout << "\nTarjan tests\n";
+    checkTarjan("Empty graph", 0, {}, {});
+    checkTarjan("Single node", 1, {}, {0});
+    checkTarjan("Isolated nodes", 5, {}, {0, 1, 2, 3, 4});
+    checkTarjan("DAG has one component per node", 5,
+                {{0, 1, 1}, {0, 2, 1}, {1, 3, 1}, {2, 3, 1}, {3, 4, 1}},
+                {0, 1, 2, 3, 4});
+    checkTarjan("Directed cycle", 4,
+                {{0, 1, 1}, {1, 2, 1}, {2, 3, 1}, {3, 0, 1}}, {0, 0, 0, 0});
+    checkTarjan("One-way edges between components", 8,
+                {{0, 1, 1}, {1, 2, 1}, {2, 0, 1}, {2, 3, 1}, {3, 4, 1},
+                 {4, 5, 1}, {5, 3, 1}, {5, 6, 1}, {6, 7, 1}, {7, 6, 1}},
+                {0, 0, 0, 3, 3, 3, 6, 6});
+    checkTarjan("Disconnected cycles and isolated node", 7,
+                {{0, 1, 1}, {1, 0, 1}, {2, 3, 1}, {3, 4, 1}, {4, 2, 1}, {5, 5, 1}},
+                {0, 0, 2, 2, 2, 5, 6});
+    checkTarjan("Self-loops, parallel edges and varying weights", 3,
+                {{0, 0, -5}, {0, 1, 0}, {0, 1, 9}, {1, 0, 2},
+                 {1, 1, 1}, {1, 2, 1}, {2, 2, 1}}, {0, 0, 2});
+
+    // Node 1 is no longer on the stack when 2 -> 1 is examined.
+    checkTarjan("Edges to completed components do not merge them", 3,
+                {{0, 1, 1}, {0, 2, 1}, {2, 1, 1}}, {0, 1, 2});
+
+    // DFS(1) returns, but node 1 is still on the stack when 2 -> 1 is examined.
+    checkTarjan("Edge to an active node joins the component", 3,
+                {{0, 1, 1}, {1, 0, 1}, {0, 2, 1}, {2, 1, 1}}, {0, 0, 0});
+
+    std::vector<WeightEdge> cycleEdges;
+    const int cycleSize = 256;
+    for (int i = 0; i < cycleSize; ++i)
+        cycleEdges.push_back({i, (i + 1) % cycleSize, 1});
+    checkTarjan("Longer cycle is fully popped", cycleSize, cycleEdges,
+                std::vector<int>(cycleSize, 0));
+
+    // Independent oracle: nodes share an SCC iff each can reach the other.
+    std::mt19937 sccRandom(20261020);
+    bool randomSCCPassed = true;
+    for (int test = 0; test < 100 && randomSCCPassed; ++test)
+    {
+        const int n = 1 + static_cast<int>(sccRandom() % 8);
+        Graph randomGraph(n);
+        std::vector<std::vector<bool>> reachable(n, std::vector<bool>(n, false));
+        for (int i = 0; i < n; ++i)
+        {
+            reachable[i][i] = true;
+            for (int j = 0; j < n; ++j)
+            {
+                if (sccRandom() % 4 == 0)
+                {
+                    randomGraph.addEdge(i, j, 1);
+                    reachable[i][j] = true;
+                }
+            }
+        }
+        for (int k = 0; k < n; ++k)
+            for (int i = 0; i < n; ++i)
+                for (int j = 0; j < n; ++j)
+                    reachable[i][j] = reachable[i][j] || (reachable[i][k] && reachable[k][j]);
+
+        std::vector<int> expected(n);
+        for (int i = 0; i < n; ++i)
+        {
+            expected[i] = i;
+            for (int j = 0; j < i; ++j)
+            {
+                if (reachable[i][j] && reachable[j][i])
+                {
+                    expected[i] = expected[j];
+                    break;
+                }
+            }
+        }
+        const auto scc = runTarjan(randomGraph);
+        randomSCCPassed = matchesPartition(scc, expected);
+        if (!randomSCCPassed)
+        {
+            std::cout << "  Random case " << test + 1 << " failed (nodes: " << n << ").\n";
+            for (int i = 0; i < n; ++i)
+                std::cout << "  Node " << i << ": expected group " << expected[i]
+                          << ", actual component " << scc.belong(i) << '\n';
+        }
+    }
+    ++total;
+    if (!randomSCCPassed) ++failed;
+    std::cout << (randomSCCPassed ? "[PASS] Tarjan: " : "[FAIL] Tarjan: ")
+              << "100 fixed-seed graphs match reachability oracle\n";
 
     std::cout << '\n' << total - failed << '/' << total << " tests passed.\n";
     return failed == 0 ? 0 : 1;
